@@ -12,22 +12,31 @@ sns.set_style('whitegrid')
 
 
 def load_data(red_path: str, white_path: str) -> pd.DataFrame:
-    """
-    Loading and merging red and white wine datasets.
-
-    Note: Don't forget to add the 'type' attribute.
-    """
-    # TODO: Your code here
-    data = None
-
+    df_red = pd.read_csv(red_path, sep=';' if ';' in open(red_path).readline() else ',')
+    df_white = pd.read_csv(white_path, sep=';' if ';' in open(white_path).readline() else ',')
+    
+    df_red['type'] = 'red'
+    df_white['type'] = 'white'
+    
+    data = pd.concat([df_red, df_white], ignore_index=True)
     return data
 
 
 def remove_outliers(df: pd.DataFrame, features: pd.Index) -> pd.DataFrame:
     """Removing outliers from a dataset using the IQR method."""
     df_clean = df.copy()
-
-    # TODO: Your code here
+    
+    numeric_features = [f for f in features if pd.api.types.is_numeric_dtype(df_clean[f])]
+    
+    Q1 = df_clean[numeric_features].quantile(0.25)
+    Q3 = df_clean[numeric_features].quantile(0.75)
+    IQR = Q3 - Q1
+    
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    
+    condition = ~((df_clean[numeric_features] < lower_bound) | (df_clean[numeric_features] > upper_bound)).any(axis=1)
+    df_clean = df_clean[condition]
 
     return df_clean
 
@@ -36,8 +45,9 @@ def encode_categorical_variables(data: pd.DataFrame) -> pd.DataFrame:
     """Encoding of categorical variables."""
     data_encoded = data.copy()
 
-    # TODO: Your code here
-
+    if 'type' in data_encoded.columns:
+        data_encoded = pd.get_dummies(data_encoded, columns=['type'], dtype=int)
+        
     return data_encoded
 
 
@@ -45,8 +55,8 @@ def scale_features(
     X_train: pd.DataFrame
 ) -> np.ndarray:
     """Standartization (scaling) of features"""
-    # TODO: Your code here
-    X_train_scaled = None
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
 
     return X_train_scaled
 
@@ -57,21 +67,28 @@ def apply_pca(X: pd.DataFrame) -> np.ndarray:
     """
     X_scaled = scale_features(X)
 
-    # TODO: Your code here
-
-    X_pca = None
+    pca = PCA(n_components=2, random_state=42)
+    X_pca = pca.fit_transform(X_scaled)
     return X_pca
 
 
 def perform_clustering(X_pca: np.ndarray) -> dict[str, float | np.ndarray]:
-    """Performing clustering based on PCA results."""
-    # K-means
-    # TODO: Your code here
+    best_score = -1
+    best_k = 2
+    best_labels = None
 
-    # Model evaluation
-    # TODO: Your code here
-    results = {'labels': [], 'silhouette_score': 0.0}
+    # Finding optimal number of clusters from 2 to 10 using silhouette score
+    for k in range(2, 11):
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(X_pca)
+        score = silhouette_score(X_pca, labels)
+        
+        if score > best_score:
+            best_score = score
+            best_k = k
+            best_labels = labels
 
+    results = {'labels': best_labels, 'silhouette_score': float(best_score)}
     return results
 
 
